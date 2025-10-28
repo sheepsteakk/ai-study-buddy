@@ -1,0 +1,25 @@
+### Health
+GET http://localhost:8000/api/v1/health
+
+### Summarize a sample PDF
+# Replace the file path with a local test PDF
+POST http://localhost:8000/api/v1/summarize
+Content-Type: multipart/form-data; boundary=BOUNDARY
+
+--BOUNDARY
+Content-Disposition: form-data; name="file"; filename="sample.pdf"
+Content-Type: application/pdf
+
+< ./sample.pdf
+--BOUNDARY--
+
+### Study (summary + quiz)
+POST http://localhost:8000/api/v1/study
+Content-Type: multipart/form-data; boundary=BOUNDARY
+
+--BOUNDARY
+Content-Disposition: form-data; name="file"; filename="sample.pdf"
+Content-Type: application/pdf
+
+< ./sample.pdf
+--BOUNDARY--

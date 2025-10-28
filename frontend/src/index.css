@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* page background + subtle texture */
+html, body, #root {
+  height: 100%;
+}
+body {
+  @apply bg-gradient-to-br from-gray-50 via-blue-50/30 to-indigo-50/30 text-gray-900;
+}
+
+/* container widths that match the screenshots */
+.app-shell {
+  @apply max-w-7xl mx-auto;
+}
+
+/* top nav pills */
+.nav-pill {
+  @apply flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200;
+}
+.nav-pill--active {
+  @apply bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg;
+}
+.nav-pill--idle {
+  @apply text-gray-700 hover:bg-gray-100;
+}
+
+/* big section header icon tile */
+.header-tile {
+  @apply w-12 h-12 rounded-xl flex items-center justify-center;
+}
+
+/* dashed dropzone */
+.dropzone {
+  @apply border-2 border-dashed border-gray-300 bg-white/60 backdrop-blur-sm rounded-3xl;
+}
+
+/* big upload glyph circle */
+.upload-glyph {
+  @apply w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6;
+  @apply bg-gradient-to-br from-blue-50 to-indigo-50;
+}
+
+/* primary gradient button */
+.btn-primary {
+  @apply bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white;
+}
+
+/* secondary purple gradient (Study Mode primary) */
+.btn-primary--purple {
+  @apply bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white;
+}
+
+/* src/index.css — keep your Tailwind directives, then add: */
+.prose :where(h2, h3){ color:#0f172a; }      /* slate-900 headings */
+.prose :where(p, li){ color:#334155; }       /* slate-600 body text */
