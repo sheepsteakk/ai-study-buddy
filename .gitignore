@@ -2,3 +2,10 @@
 .env.*
 backend/.env*
 frontend/.env*
+backend/.venv/
+.venv/
+backend/.venv/
+backend/.venv/
+.venv/
+backend/__pycache__/
+**/__pycache__/
