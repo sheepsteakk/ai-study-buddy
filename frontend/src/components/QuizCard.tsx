@@ -1,4 +1,3 @@
-// src/components/QuizCard.tsx
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +31,10 @@ export default function QuizCard({
     explanation: string;
     guidance?: string;
   } | null>(null);
+
+  // Remove any leading label like "A) ", "(B) ", "C. ", "d:" or "A - "
+  const stripLeadingLabel = (s: string) =>
+    s.replace(/^\s*(?:\(?[A-Da-d]\)?[\.\):\-]\s*|[A-Da-d]\s+\-\s+)/, "");
 
   const isCorrectLocal =
     selected !== null && selected === question.correct_answer_index;
@@ -84,7 +87,7 @@ export default function QuizCard({
           </Badge>
         </div>
 
-        {/* Let the question render inline Markdown (italics, bold) */}
+        {/* Allow inline Markdown in the question stem */}
         <CardTitle className="text-lg leading-relaxed text-gray-900 prose prose-sm max-w-none">
           <ReactMarkdown>{question.question}</ReactMarkdown>
         </CardTitle>
@@ -92,7 +95,8 @@ export default function QuizCard({
 
       <CardContent className="pt-6">
         <div className="space-y-3">
-          {question.options.map((opt, i) => {
+          {question.options.map((rawOpt, i) => {
+            const opt = stripLeadingLabel(rawOpt);
             const isSelected = selected === i;
             const isAnswer = i === question.correct_answer_index;
 
@@ -148,7 +152,6 @@ export default function QuizCard({
                 : "bg-red-50 border-red-200"
             }`}
           >
-            {/* Title based on local correctness to avoid flicker */}
             <p
               className={`font-semibold mb-2 ${
                 isCorrectLocal ? "text-green-900" : "text-red-900"
@@ -157,7 +160,6 @@ export default function QuizCard({
               {isCorrectLocal ? "Correct!" : "Not quite right"}
             </p>
 
-            {/* While waiting for tutor, show calm message */}
             {loading ? (
               <p
                 className={`${
@@ -169,9 +171,7 @@ export default function QuizCard({
             ) : (
               <>
                 <div className="prose prose-sm max-w-none mb-1">
-                  <ReactMarkdown>
-                    {fb?.explanation || ""}
-                  </ReactMarkdown>
+                  <ReactMarkdown>{fb?.explanation || ""}</ReactMarkdown>
                 </div>
                 {fb?.guidance && (
                   <div className="prose prose-sm max-w-none">

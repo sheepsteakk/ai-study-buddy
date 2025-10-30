@@ -30,13 +30,15 @@ _PROMPT_JSON_SPEC = (
     '  {"question":"...","choices":["A","B","C","D"],"answer_index":0},\n'
     '  {"question":"...","choices":["A","B","C","D"],"answer_index":2}\n'
     "]\n"
-    "Ensure: 4 choices per question; answer_index is 0..3."
+    "Ensure: 4 choices per question; answer_index is 0..3.\n"
+    "Do not prefix choices with letters or numbers. No 'A)'/'(B)'/'C.' etc."
 )
 
 _QUIZ_INSTRUCTIONS = (
     "You are a helpful tutor. Create clear, self-contained multiple-choice questions (MCQs) "
     "based on the summary. Avoid trick questions or ambiguity. Cover different key ideas. "
-    "Keep questions short and focused. Exactly 4 choices per question, only one correct."
+    "Keep questions short and focused. Exactly 4 choices per question, only one correct. "
+    "Choices must be plain text without leading labels like A) or 1)."
 )
 
 
@@ -53,6 +55,21 @@ def _clean_json_text(text: str) -> str:
     return m.group(0) if m else t
 
 
+# --- NEW: choice label stripper ---------------------------------------------
+_LABEL_RE = re.compile(
+    r'^\s*(?:'              # leading space
+    r'\(?[A-Da-d]\)?'       # A or (A)
+    r'[\.\):\-]?'           # optional ., ), :, -
+    r'|\d+'                 # or a number
+    r'[\.\):\-]'            # followed by punctuation
+    r')\s+'                 # trailing space
+)
+
+def _strip_choice_label(s: str) -> str:
+    return _LABEL_RE.sub('', s or '').strip()
+# -----------------------------------------------------------------------------
+
+
 def _validate_items(items: List[Dict[str, Any]], num_q: int) -> List[Dict[str, Any]]:
     """Ensure each item has the right schema; trim/pad to num_q."""
     valid: List[Dict[str, Any]] = []
@@ -64,8 +81,8 @@ def _validate_items(items: List[Dict[str, Any]], num_q: int) -> List[Dict[str, A
             continue
         if not isinstance(choices, list) or len(choices) != 4:
             continue
-        # coerce to strings
-        choices = [str(c) for c in choices]
+        # coerce to strings and strip any leading labels like A), (B), 1., etc.
+        choices = [_strip_choice_label(str(c)) for c in choices]
         # answer_index sanity
         try:
             ai = int(ai)
@@ -81,7 +98,7 @@ def _validate_items(items: List[Dict[str, Any]], num_q: int) -> List[Dict[str, A
     if not valid:
         valid = [{
             "question": "Placeholder: quiz generator returned no valid questions.",
-            "choices": ["A", "B", "C", "D"],
+            "choices": ["Option 1", "Option 2", "Option 3", "Option 4"],
             "answer_index": 0
         }]
 
