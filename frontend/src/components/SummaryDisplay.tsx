@@ -5,15 +5,23 @@ import remarkGfm from "remark-gfm";
 import { Sparkles } from "lucide-react";
 
 /**
- * Normalize LLM markdown to match Base44 conventions:
+ * Light normalization:
  * - Demote H1 → H2
  * - Unbold label patterns like **Definition:** → Definition:
  * - Collapse extra blank lines
+ * - Strip emphasis (**bold**, *italic*) while preserving list bullets
  */
 function cleanMarkdown(md: string): string {
   let out = md.replace(/^# (.+)$/gm, "## $1");
   out = out.replace(/\*\*([^\*\n]{1,60}?):\*\*/g, "$1:");
   out = out.replace(/\n{3,}/g, "\n\n");
+
+  // remove **bold** anywhere
+  out = out.replace(/\*\*(.+?)\*\*/g, "$1");
+  // remove *italic* but keep bullet lines like "* item"
+  // (no closing * on bullets, so this won't match them)
+  out = out.replace(/(^|[^*\n])\*([^*\n]+)\*/g, "$1$2");
+
   return out.trim();
 }
 
@@ -23,9 +31,8 @@ export default function SummaryDisplay({ summary }: Props) {
   const md = cleanMarkdown(summary);
 
   return (
-    // ✅ Compact centered layout (same width as your Card version)
     <section className="w-full flex justify-center px-4 sm:px-6 lg:px-8 py-4">
-      <div className="w-full max-w-4xl rounded-2xl border border-gray-200/70 bg-white shadow-[0_4px_24px_rgba(0,0,0,0.06)] overflow-hidden">
+      <div className="w-full max-w-4xl rounded-2xl border border-gray-200/70 bg-white shadow-[0_4px_24px_rgba(0,0,0,0.06)] overflow-hidden min-h-[400px] flex flex-col">
         {/* Header row */}
         <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-200/70 bg-slate-50/40">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center">
