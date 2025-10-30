@@ -5,19 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>StudySpark AI</title>
 
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="/favicon.png" />
+    <!-- Favicon (relative path so it honors Vite base) -->
+    <link rel="icon" type="image/png" href="./favicon.png" />
 
     <!-- Meta -->
     <meta name="description" content="StudySpark AI — Your intelligent learning companion. Get AI powered summaries and quizzes from your study materials." />
     <meta property="og:title" content="StudySpark AI" />
     <meta property="og:description" content="AI powered summaries and quizzes from your PDFs." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/favicon.png" />
+    <!-- Also make this relative -->
+    <meta property="og:image" content="./favicon.png" />
     <meta name="theme-color" content="#6366f1" />
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- Use a relative entry so Vite can rewrite it properly for /ai-study-buddy/ -->
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>
