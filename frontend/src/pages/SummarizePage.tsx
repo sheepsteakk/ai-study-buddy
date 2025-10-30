@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import FileUpload from '@/components/FileUpload'
 import SummaryDisplay from '@/components/SummaryDisplay'
 import { summarizePdf } from '@/api/client'
-import { normalizeMarkdown } from '../utils/normalizeMarkdown' // ✅ added
+import { normalizeMarkdown } from '../utils/normalizeMarkdown' 
 
 export default function SummarizePage() {
   const [file, setFile] = useState<File | null>(null)
