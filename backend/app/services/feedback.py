@@ -2,15 +2,15 @@
 from __future__ import annotations
 
 import json, re, time, os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Any
 import google.generativeai as genai
 from ..core.config import settings
 
-# --- Gemini client -----------------------------------------------------------
+# ---------- Gemini client ----------------------------------------------------
 genai.configure(api_key=settings.GEMINI_API_KEY)
 _MODEL = settings.GEMINI_MODEL  # e.g., "models/gemini-2.5-flash"
 
-# JSON-constrained config
+# JSON-constrained config (prefer JSON out of the gate)
 _json_cfg = genai.types.GenerationConfig(
     temperature=0.2,
     top_p=0.9,
@@ -18,7 +18,14 @@ _json_cfg = genai.types.GenerationConfig(
     response_mime_type="application/json",
 )
 
-# Relax safety to avoid benign anatomy content being blocked
+# Plain-text fallback config
+_text_cfg = genai.types.GenerationConfig(
+    temperature=0.2,
+    top_p=0.9,
+    max_output_tokens=512,
+)
+
+# Relax safety a bit so benign anatomy / biology doesn’t get blocked
 try:
     from google.generativeai.types import SafetySetting, HarmCategory, HarmBlockThreshold
     _safety = [
@@ -30,18 +37,10 @@ try:
 except Exception:
     _safety = None
 
-# Primary (JSON mode)
 _model_json = genai.GenerativeModel(
     model_name=_MODEL,
     generation_config=_json_cfg,
     safety_settings=_safety,
-)
-
-# Fallback (plain text mode; no JSON constraint)
-_text_cfg = genai.types.GenerationConfig(
-    temperature=0.2,
-    top_p=0.9,
-    max_output_tokens=512,
 )
 _model_text = genai.GenerativeModel(
     model_name=_MODEL,
@@ -49,31 +48,34 @@ _model_text = genai.GenerativeModel(
     safety_settings=_safety,
 )
 
+# ---------- Constants --------------------------------------------------------
 _JSON_SPEC = (
-    'Return ONLY valid JSON exactly like: '
-    '{"correct": true, "explanation": "…", "guidance": "Tip: …"}. '
-    'Do not include extra keys. Do not output placeholders such as "string", "N/A", or empty text.'
+    "Return ONLY JSON with keys exactly: "
+    '{"correct": <boolean>, "explanation": <string>, "guidance": <string>}. '
+    "No markdown, no code fences, no extra keys, no placeholders."
 )
 
 _DEBUG = os.getenv("DEBUG", "").lower() in {"1", "true", "yes"}
 
-# --- Helpers -----------------------------------------------------------------
-def _parse_json_loose(s: str) -> Optional[Dict]:
-    s = (s or "").strip()
-    if not s:
-        return None
+# ---------- Helpers ----------------------------------------------------------
+def _debug(tag: str, resp, raw: str):
+    if not _DEBUG:
+        return
     try:
-        return json.loads(s)
+        fins = [getattr(c, "finish_reason", None) for c in (resp.candidates or [])]
+        print(f"[feedback] {tag}: finish_reasons={fins}")
+        pf = getattr(resp, "prompt_feedback", None)
+        if pf:
+            print(f"[feedback] {tag}: prompt_feedback={pf}")
     except Exception:
-        m = re.search(r"\{(?:[^{}]|(?R))*\}", s, flags=re.S)  # recursive-ish obj grab
-        if m:
-            try:
-                return json.loads(m.group(0))
-            except Exception:
-                return None
-        return None
+        pass
+    if raw:
+        print(f"[feedback] {tag} raw:\n{raw[:800]}")
 
 def _extract_text(resp) -> str:
+    """
+    Robustly extract text from the Gemini response object.
+    """
     if not resp:
         return ""
     t = getattr(resp, "text", None)
@@ -88,41 +90,86 @@ def _extract_text(resp) -> str:
                 out.append(txt)
     return "\n".join(out).strip()
 
+_CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*([\s\S]*?)\s*```$", re.I)
+_FIRST_JSON_OBJ_RE = re.compile(r"\{(?:[^{}]|(?R))*\}", re.S)
+
+def _strip_code_fences(s: str) -> str:
+    m = _CODE_FENCE_RE.match(s.strip())
+    return m.group(1) if m else s
+
+def _parse_json_loose(s: str) -> Optional[Dict[str, Any]]:
+    """
+    Accepts raw model output. Handles:
+      - ```json ... ```
+      - extra prose around a JSON object
+      - minor whitespace / newline issues
+    """
+    if not s:
+        return None
+    s = _strip_code_fences(s).strip()
+    # Try direct loads first
+    try:
+        return json.loads(s)
+    except Exception:
+        pass
+    # Try to find first JSON object anywhere in the string
+    m = _FIRST_JSON_OBJ_RE.search(s)
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except Exception:
+            return None
+    return None
+
 def _letters(n: int) -> List[str]:
     return list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")[: max(0, min(n, 26))]
 
-def _sanitize(parsed: Dict, *, correct: bool) -> Dict:
-    exp = (parsed.get("explanation") or "").strip()
-    gid = (parsed.get("guidance") or "").strip()
-    if exp.lower() in {"string", "n/a", "na"}:
-        exp = "Your choice is correct." if correct else "Compare your choice’s definition to the correct one."
-    if gid.lower() in {"string", "n/a", "na"}:
-        gid = "Tip: Link each plane to its specific direction of division."
-    if not exp:
-        exp = "Your answer is correct." if correct else "Review the key distinction between the two options."
-    if not gid:
-        gid = "Tip: Re-read the summary phrase that matches the correct option."
-    return {
-        "correct": bool(parsed.get("correct", correct)),
-        "explanation": exp,
-        "guidance": gid,
-    }
+def _coerce_bool(x: Any) -> bool:
+    if isinstance(x, bool):
+        return x
+    if isinstance(x, (int, float)):
+        return bool(x)
+    if isinstance(x, str):
+        v = x.strip().lower()
+        if v in {"true", "t", "yes", "y", "1"}:
+            return True
+        if v in {"false", "f", "no", "n", "0"}:
+            return False
+    return False
 
-def _debug(tag: str, resp, raw: str):
-    if not _DEBUG:
-        return
+def _validate_and_sanitize(parsed: Dict[str, Any], *, correct: bool) -> Dict[str, Any]:
+    """
+    Ensure required keys exist with correct types and no empty placeholders.
+    """
+    out_correct = _coerce_bool(parsed.get("correct", correct))
+    exp = str(parsed.get("explanation", "") or "").strip()
+    gid = str(parsed.get("guidance", "") or "").strip()
+
+    # Replace junk placeholders
+    if exp.lower() in {"string", "n/a", "na", "none"} or not exp:
+        exp = "Your answer is correct." if out_correct else "Compare the key terms in the correct choice to your selection."
+    if gid.lower() in {"string", "n/a", "na", "none"} or not gid:
+        gid = "Tip: Re-read the summary phrase that directly supports the correct option."
+
+    return {"correct": out_correct, "explanation": exp, "guidance": gid}
+
+def _call_model(model, prompt: str, *, tag: str) -> Tuple[Optional[Dict[str, Any]], str]:
+    """
+    Call Gemini, extract text, try to parse JSON.
+    Returns (parsed_dict_or_none, raw_text)
+    """
     try:
-        fins = [getattr(c, "finish_reason", None) for c in (resp.candidates or [])]
-        print(f"[feedback] {tag} finish_reasons={fins}")
-        pf = getattr(resp, "prompt_feedback", None)
-        if pf:
-            print(f"[feedback] {tag} prompt_feedback={pf}")
-    except Exception:
-        pass
-    if raw:
-        print(f"[feedback] {tag} raw:\n{raw[:800]}")
+        resp = model.generate_content(prompt)
+        raw = _extract_text(resp)
+        _debug(tag, resp, raw)
+        parsed = _parse_json_loose(raw)
+        return parsed, raw
+    except Exception as e:
+        if _DEBUG:
+            print(f"[feedback] {tag} exception: {e}")
+        return None, ""
 
-# --- Public API --------------------------------------------------------------
+# ---------- Public API -------------------------------------------------------
 def generate_feedback_with_gemini(
     *,
     question: str,
@@ -132,16 +179,18 @@ def generate_feedback_with_gemini(
     summary: Optional[str] = None,
     explain_if_correct: bool = False,
     detail: str = "short",
-) -> Dict:
+) -> Dict[str, Any]:
     """
     Returns dict: { correct: bool, explanation: str, guidance: Optional[str] }.
-    Retry strategy:
-      1) Friendly JSON prompt (JSON mode)
-      2) Stricter JSON prompt (JSON mode)
-      3) Plain-text mode, then parse any JSON object in the text
-    """
-    correct = selected_index == answer_index
 
+    Retry strategy:
+      1) JSON mode, friendly prompt (2 tries)
+      2) JSON mode, strict minimal format (1 try)
+      3) Plain-text mode, strict minimal format (1 try), then parse any JSON
+    """
+    correct = (selected_index == answer_index)
+
+    # If correct and no explanation requested, return a fast path
     if correct and not explain_if_correct:
         return {
             "correct": True,
@@ -154,7 +203,7 @@ def generate_feedback_with_gemini(
     length_rule = "Keep it to 1–2 sentences." if detail == "short" else "Use 2–4 concise sentences."
     formatted_choices = "\n".join([f"{letters[i]}. {c}" for i, c in enumerate(choices)]) if choices else "No choices provided."
 
-    prompt1 = f"""
+    prompt_friendly = f"""
 You are a concise, friendly tutor.
 
 Context (may help): {context}
@@ -174,49 +223,46 @@ End with a single study tip starting with "Tip:" on a new sentence.
 {_JSON_SPEC}
 """.strip()
 
-    prompt2 = (
-        "Return ONLY JSON. Keys: correct(boolean), explanation(string), guidance(string).\n"
-        f"Q: {question}\nChoices: {choices}\nCorrect index: {answer_index}; Selected index: {selected_index}\n"
+    prompt_strict = (
+        "Return ONLY JSON, no markdown. Keys exactly: "
+        'correct (boolean), explanation (string), guidance (string).\n'
+        f"Q: {question}\nChoices: {choices}\n"
+        f"Correct index: {answer_index}; Selected index: {selected_index}\n"
         f"Context: {context}\n{_JSON_SPEC}"
     )
 
-    # Attempt 1: JSON mode, friendly prompt (retry up to 2x with micro backoff)
+    # Attempt 1: JSON mode, friendly prompt (2 micro-retries)
     for i in range(2):
-        try:
-            resp = _model_json.generate_content(prompt1)
-            raw = _extract_text(resp)
-            _debug(f"try1.{i+1}", resp, raw)
-            parsed = _parse_json_loose(raw)
-            if parsed:
-                return _sanitize(parsed, correct=correct)
-        except Exception:
-            pass
-        time.sleep(0.35)
+        parsed, raw = _call_model(_model_json, prompt_friendly, tag=f"json_friendly.{i+1}")
+        if parsed:
+            return _validate_and_sanitize(parsed, correct=correct)
+        time.sleep(0.35 + i * 0.15)
 
     # Attempt 2: JSON mode, strict prompt
-    try:
-        resp = _model_json.generate_content(prompt2)
-        raw = _extract_text(resp)
-        _debug("try2", resp, raw)
-        parsed = _parse_json_loose(raw)
-        if parsed:
-            return _sanitize(parsed, correct=correct)
-    except Exception:
-        pass
+    parsed, raw = _call_model(_model_json, prompt_strict, tag="json_strict")
+    if parsed:
+        return _validate_and_sanitize(parsed, correct=correct)
     time.sleep(0.35)
 
-    # Attempt 3: plain text mode (no JSON constraint), then parse any JSON object
+    # Attempt 3: plain text mode, strict prompt (parse any JSON found)
+    # Lower temperature for last attempt for extra determinism.
     try:
-        resp = _model_text.generate_content(prompt2)
-        raw = _extract_text(resp)
-        _debug("try3", resp, raw)
-        parsed = _parse_json_loose(raw)
-        if parsed:
-            return _sanitize(parsed, correct=correct)
+        # Temporarily lower temperature without mutating shared model
+        model_lowtemp = genai.GenerativeModel(
+            model_name=_MODEL,
+            generation_config=genai.types.GenerationConfig(
+                **{**_text_cfg.to_dict(), "temperature": 0.1, "top_p": 0.8}
+            ),
+            safety_settings=_safety,
+        )
     except Exception:
-        pass
+        model_lowtemp = _model_text
 
-    # Final fallback
+    parsed, raw = _call_model(model_lowtemp, prompt_strict, tag="text_strict")
+    if parsed:
+        return _validate_and_sanitize(parsed, correct=correct)
+
+    # Final fallback — graceful, student-friendly message
     return {
         "correct": correct,
         "explanation": (
