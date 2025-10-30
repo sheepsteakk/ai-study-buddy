@@ -23,19 +23,19 @@ export default function SummaryDisplay({ summary }: Props) {
   const md = cleanMarkdown(summary);
 
   return (
-    // ✅ Match original card size and spacing
-    <div className="max-w-4xl mx-auto">
-      <div className="rounded-2xl border border-gray-200/70 bg-white shadow-[0_4px_24px_rgba(0,0,0,0.06)] overflow-hidden">
+    // ✅ Compact centered layout (same width as your Card version)
+    <section className="w-full flex justify-center px-4 sm:px-6 lg:px-8 py-4">
+      <div className="w-full max-w-4xl rounded-2xl border border-gray-200/70 bg-white shadow-[0_4px_24px_rgba(0,0,0,0.06)] overflow-hidden">
         {/* Header row */}
         <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-200/70 bg-slate-50/40">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-white" />
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center">
+            <Sparkles className="h-5 w-5 text-white" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900">AI-Generated Summary</h2>
+          <h2 className="text-2xl font-bold text-gray-900">AI-Generated Summary</h2>
         </div>
 
         {/* Content */}
-        <div className="px-6 py-6">
+        <div className="px-6 py-6 lg:px-10 lg:py-8">
           <article
             className={[
               "prose prose-slate max-w-none",
@@ -68,6 +68,6 @@ export default function SummaryDisplay({ summary }: Props) {
           </article>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
