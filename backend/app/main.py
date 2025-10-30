@@ -14,11 +14,13 @@ def build_app() -> FastAPI:
     # CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=settings.CORS_ORIGINS,  # parsed list from env
+        allow_origin_regex=getattr(settings, "CORS_ORIGIN_REGEX", None),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
 
     # Inject Gemini summarizer
     if not settings.GEMINI_API_KEY:
