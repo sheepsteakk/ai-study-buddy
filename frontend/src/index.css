@@ -55,3 +55,6 @@ body {
 /* src/index.css — keep your Tailwind directives, then add: */
 .prose :where(h2, h3){ color:#0f172a; }      /* slate-900 headings */
 .prose :where(p, li){ color:#334155; }       /* slate-600 body text */
+
+.markdown ul { list-style: disc; padding-left: 1.25rem; margin: 0.5rem 0; }
+.markdown li { margin: 0.25rem 0; }

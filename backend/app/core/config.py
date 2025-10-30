@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     # CORS
     # -------------------------------------------------------------------------
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGIN_REGEX: str = "https://.*\.github\.io"
 
     # -------------------------------------------------------------------------
     # Gemini Provider (default)
