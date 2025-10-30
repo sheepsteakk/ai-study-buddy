@@ -5,7 +5,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import FileUpload from '@/components/FileUpload'
 import SummaryDisplay from '@/components/SummaryDisplay'
 import { summarizePdf } from '@/api/client'
-import { normalizeMarkdown } from '../utils/normalizeMarkdown' 
 
 export default function SummarizePage() {
   const [file, setFile] = useState<File | null>(null)
@@ -79,11 +78,7 @@ export default function SummarizePage() {
           <Button variant="outline" onClick={reset} className="mb-4">
             <ArrowLeft className="w-4 h-4 mr-2" /> Summarize Another Document
           </Button>
-
-          {/* wrapped normalized markdown */}
-          <div className="markdown">
-            <SummaryDisplay summary={normalizeMarkdown(summary)} />
-          </div>
+          <SummaryDisplay summary={summary} />
         </div>
       )}
     </div>

@@ -1,74 +1,35 @@
-// frontend/src/utils/normalizeMarkdown.ts
-// Turn plain text like "I. Title" and "Label: value" into tidy Markdown.
-
-const ROMAN = /^(?:[IVXLCDM]+)\./i;
-const arabicHeading = /^(\d+)\.\s+(.+)/;
-
+// frontend/src/lib/normalizeMarkdown.ts
 export function normalizeMarkdown(input: string): string {
-  if (!input) return "";
+  let s = input ?? "";
 
-  // Split into lines, trim right spaces
-  const lines = input.replace(/\r\n/g, "\n").split("\n").map(l => l.replace(/\s+$/,""));
+  // 1) Fix headings that came as "1. Title" -> "## Title"
+  s = s.replace(/^\s*\d+\.\s+(.*)$/gm, '## $1');
 
-  const out: string[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    let line = lines[i];
+  // 2) Lines that start with "*** " were meant to be bullets
+  //    e.g. "*** Cell Wall: ** ..." -> "- **Cell Wall:** ..."
+  s = s.replace(/^\s*\*{3}\s+(.*)$/gm, '- $1');
 
-    // Collapse repeated blank lines
-    if (!line.trim()) {
-      if (out.length && out[out.length - 1] !== "") out.push("");
-      continue;
-    }
+  // 3) Collapse accidental triple asterisks around text to bold
+  //    "***Term***" -> "**Term**"
+  s = s.replace(/\*{3}([^\*\n]+)\*{3}/g, '**$1**');
 
-    // Promote roman numeral sections like "I. Core Divisions of Anatomy"
-    if (ROMAN.test(line.trim())) {
-      const title = line.trim().replace(ROMAN, "").trim();
-      if (out.length && out[out.length - 1] !== "") out.push("");
-      out.push(`## ${title}`);
-      out.push("");
-      continue;
-    }
+  // 4) Trim spaces just inside bold delimiters:
+  //    "** Term : **" -> "**Term:**"
+  s = s.replace(/\*\*\s*([^*\n][^*]*?)\s*\*\*/g, (_, inner) => `**${inner.trim()}**`);
 
-    // Promote numeric top-level sections like "2. Something"
-    const m = line.match(arabicHeading);
-    if (m && m[2] && m[1].length <= 2) {
-      if (out.length && out[out.length - 1] !== "") out.push("");
-      out.push(`## ${m[2].trim()}`);
-      out.push("");
-      continue;
-    }
+  // 5) If a term is bold then immediately followed by a colon with spaces, pull the colon inside bold
+  //    "**Term** :" -> "**Term:**"
+  s = s.replace(/\*\*([^\*\n]+?)\*\*\s*:/g, '**$1:**');
 
-    // Turn “Label: Value” into a bullet with bold label
-    const colon = line.indexOf(":");
-    if (colon > 0 && colon < 60) {
-      const key = line.slice(0, colon).trim();
-      const val = line.slice(colon + 1).trim();
-      if (key && val) {
-        out.push(`- **${key}:** ${val}`);
-        continue;
-      }
-    }
+  // 6) Any lonely single asterisks that aren’t emphasis become a bullet dot
+  //    We leave pairs "**" intact
+  s = s.replace(/(?<!\*)\*(?!\*)/g, '•');
 
-    // Keep existing bullets as bullets
-    if (/^\s*[-*]\s+/.test(line)) {
-      out.push(line);
-      continue;
-    }
+  // 7) Ensure list items start cleanly with "- "
+  s = s.replace(/^\s*-\s*(?!\s)/gm, match => match.replace(/\s+/g, ' '));
 
-    // If the line looks like a short topic phrase, make it a sub-bullet
-    if (line.length <= 120 && /^[A-Z][^.!?]{2,}$/.test(line)) {
-      out.push(`- ${line}`);
-      continue;
-    }
+  // 8) Squeeze excessive blank lines
+  s = s.replace(/\n{3,}/g, '\n\n');
 
-    // Otherwise just keep the line
-    out.push(line);
-  }
-
-  // Final tidy: remove triple blanks, unwrap stray asterisks from model
-  let md = out.join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/\*\s*(\w[\s\w-]{0,40})\s*\*/g, "*$1*"); // keep italics if intended
-
-  return md.trim();
+  return s.trim();
 }

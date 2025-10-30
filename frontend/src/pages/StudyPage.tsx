@@ -7,7 +7,6 @@ import FileUpload from '@/components/FileUpload'
 import SummaryDisplay from '@/components/SummaryDisplay'
 import QuizCard from '@/components/QuizCard'
 import { studyFromPdf } from '@/api/client'
-import { normalizeMarkdown } from '../utils/normalizeMarkdown' // ✅ added
 
 export default function StudyPage() {
   const [file, setFile] = useState<File | null>(null)
@@ -92,9 +91,8 @@ export default function StudyPage() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="summary" className="mt-6 markdown">
-              {/* wrapped normalized markdown */}
-              <SummaryDisplay summary={normalizeMarkdown(summary || '')} />
+            <TabsContent value="summary" className="mt-6">
+              <SummaryDisplay summary={summary || ''} />
             </TabsContent>
 
             <TabsContent value="quiz" className="mt-6">
