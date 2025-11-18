@@ -32,7 +32,7 @@ export default defineConfig({
 
   // build for GitHub Pages
   build: {
-    outDir: 'docs',         // this is what your GH Actions workflow deploys
+    outDir: 'dist',         // this is what your GH Actions workflow deploys
     emptyOutDir: true,
     rollupOptions: {
       output: {
