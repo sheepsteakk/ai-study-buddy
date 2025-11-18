@@ -7,8 +7,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 /** digits -> Unicode subscripts */
 function toSubscriptDigits(s: string) {
-  const map: Record<string, string> = { "0":"₀","1":"₁","2":"₂","3":"₃","4":"₄","5":"₅","6":"₆","7":"₇","8":"₈","9":"₉" };
-  return s.replace(/[0-9]/g, d => map[d] || d);
+  const map: Record<string, string> = {
+    "0": "₀",
+    "1": "₁",
+    "2": "₂",
+    "3": "₃",
+    "4": "₄",
+    "5": "₅",
+    "6": "₆",
+    "7": "₇",
+    "8": "₈",
+    "9": "₉",
+  };
+  return s.replace(/[0-9]/g, (d) => map[d] || d);
 }
 
 /** science-aware tweaks */
@@ -20,8 +31,16 @@ function normalizeScience(md: string): string {
   out = out.replace(/\$?\\rightleftharpoons\$?/g, "⇌");
   out = out.replace(/--?>|⇒/g, "→");
   out = out.replace(/\$(.*?)\$/g, "$1");
-  out = out.replace(/\b([A-Z][a-z]?)(\d+)\b/g, (_m, e: string, n: string) => e + toSubscriptDigits(n));
-  for (let i = 0; i < 3; i++) out = out.replace(/([A-Z][a-z]?)(\d+)/g, (_m, e: string, n: string) => e + toSubscriptDigits(n));
+  out = out.replace(
+    /\b([A-Z][a-z]?)(\d+)\b/g,
+    (_m, e: string, n: string) => e + toSubscriptDigits(n)
+  );
+  for (let i = 0; i < 3; i++) {
+    out = out.replace(
+      /([A-Z][a-z]?)(\d+)/g,
+      (_m, e: string, n: string) => e + toSubscriptDigits(n)
+    );
+  }
   out = out.replace(/\s*→\s*/g, " → ");
   return out;
 }
@@ -29,12 +48,47 @@ function normalizeScience(md: string): string {
 /** markdown presentation cleanup */
 function cleanMarkdown(md: string): string {
   let out = md;
-  out = out.replace(/^\s*\*\*([^*\n]+)\*\*\s*$/gm, "### $1"); // bold line -> H3
-  out = out.replace(/^#\s+(.+)$/gm, "## $1");                 // H1 -> H2
-  out = out.replace(/\*\*([A-Za-z][A-Za-z0-9 \-/]{1,60}):\*\*/g, "$1:"); // **Label:** -> Label:
-  out = out.replace(/\*\*([^*\n]+)\*\*/g, "$1");              // strip bold
-  out = out.replace(/(^|[^*])\*([^*\n ][^*\n]*?)\*(?!\*)/g, "$1$2"); // strip italics
-  out = out.replace(/\n{3,}/g, "\n\n").trim();                // collapse blanks
+
+  // bold line -> H3
+  out = out.replace(/^\s*\*\*([^*\n]+)\*\*\s*$/gm, "### $1");
+  // H1 -> H2
+  out = out.replace(/^#\s+(.+)$/gm, "## $1");
+  // **Label:** -> Label:
+  out = out.replace(
+    /\*\*([A-Za-z][A-Za-z0-9 \-/]{1,60}):\*\*/g,
+    "$1:"
+  );
+  // strip bold
+  out = out.replace(/\*\*([^*\n]+)\*\*/g, "$1");
+  // strip italics
+  out = out.replace(
+    /(^|[^*])\*([^*\n ][^*\n]*?)\*(?!\*)/g,
+    "$1$2"
+  );
+
+  // Normalize Roman numeral section headers to numeric 1., 2., 3., …
+  // Handles both plain lines:
+  //   I. Cells: ...
+  // and markdown headings:
+  //   ## I. Cells: ...
+  const lines = out.split("\n");
+  let sectionCounter = 1;
+  const romanHeaderRe = /^(\s*(?:#{1,3}\s+)?)([IVXLC]+)\.\s+(.+)/;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const match = line.match(romanHeaderRe);
+    if (match) {
+      const prefix = match[1]; // optional ## etc
+      const rest = match[3];
+      lines[i] = `${prefix}${sectionCounter++}. ${rest}`;
+    }
+  }
+
+  out = lines.join("\n");
+
+  // collapse extra blank lines
+  out = out.replace(/\n{3,}/g, "\n\n").trim();
   return out;
 }
 
@@ -69,18 +123,34 @@ export default function SummaryDisplay({ summary }: Props) {
                 </h2>
               ),
               // smaller, muted subheaders
-              h3: ({node, ...props}) => (
+              h3: ({ node, ...props }) => (
                 <h3
                   {...props}
                   className="mt-6 mb-2 text-lg font-semibold text-gray-700"
                 />
               ),
               // paragraphs & lists unchanged
-              p:  ({node, ...props}) => <p {...props} className="my-3 leading-7 text-gray-700" />,
-              ul: ({node, ...props}) => <ul {...props} className="my-2 list-disc pl-6 marker:text-gray-400" />,
-              ol: ({node, ...props}) => <ol {...props} className="my-2 list-decimal pl-6 marker:text-gray-400" />,
-              strong: ({node, ...props}) => <span {...props} className="font-normal" />,
-              em:     ({node, ...props}) => <span {...props} className="not-italic" />,
+              p: ({ node, ...props }) => (
+                <p {...props} className="my-3 leading-7 text-gray-700" />
+              ),
+              ul: ({ node, ...props }) => (
+                <ul
+                  {...props}
+                  className="my-2 list-disc pl-6 marker:text-gray-400"
+                />
+              ),
+              ol: ({ node, ...props }) => (
+                <ol
+                  {...props}
+                  className="my-2 list-decimal pl-6 marker:text-gray-400"
+                />
+              ),
+              strong: ({ node, ...props }) => (
+                <span {...props} className="font-normal" />
+              ),
+              em: ({ node, ...props }) => (
+                <span {...props} className="not-italic" />
+              ),
             }}
           >
             {md}
